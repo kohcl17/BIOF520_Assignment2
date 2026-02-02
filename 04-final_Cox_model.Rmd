@@ -1,0 +1,451 @@
+---
+title: "04-final Cox model"
+output: html_notebook
+---
+
+# Libraries
+
+```{r}
+
+# Data cleaning
+library(tidyverse)
+
+# Parallelization
+library(doParallel)
+
+# Graphing packages
+library(ggfortify)
+library(ggplot2)
+library(ggpubr)
+library(patchwork)
+library(shapviz)
+library(ComplexHeatmap)
+
+# ML packages
+library(survival)
+library(caret)
+
+# Model Evaluation
+library(MLeval)
+library(fastshap)
+library(PRROC)
+
+# DimReduction/Feature selection
+library(FactoMineR)
+library(factoextra)
+library(WGCNA)
+```
+
+# Functions
+
+```{r}
+
+pfun <- function(object, newdata) {
+  predict(object, data = newdata)$predictions[, "Yes"]
+}
+
+prep_new_data <- function(gene_expr) {
+  # indep_scale_gene_expr <- scale(gene_expr)
+  gene_expr <- as.data.frame(t(gene_expr))
+  frozen_mean_sd <- read.csv("./model/final_model_mean_sd.csv", row.names = 1) %>%
+    t() %>%
+    as.data.frame()
+  gene_expr <- gene_expr[, colnames(frozen_mean_sd)]
+  # scaled_gene_expr <- scale(gene_expr,
+  #                           center = frozen_mean_sd['mean',],
+  #                           scale = frozen_mean_sd['sd', ]) %>%
+  #   as.data.frame()
+  return(gene_expr)
+}
+```
+
+```{r}
+
+plot_conf_mat <- function(test_pred, test_obs) {
+  cm <- caret::confusionMatrix(test_pred, as.factor(test_obs))
+  cm.tbl <- cm$table %>%
+    as.tibble()
+    
+  p1 <- ggplot(cm.tbl, aes(fill = n, x = Reference, y = fct_rev(Prediction))) + 
+    geom_tile() + 
+    geom_text(aes(label = n)) + 
+    scale_fill_gradient(low = 'grey90', high = 'salmon', name = "n_samples") +
+    scale_x_discrete(expand = expansion(add = 0), name = "Truth") +
+    scale_y_discrete(expand = expansion(add = 0), name = "Prediction") +
+    theme_classic()
+  return(p1)
+}
+```
+
+```{r}
+
+# Built a function for this
+
+## normDf should be genes (row names) x samples. Should be normalized, non-logged is fine, just use log = TRUE
+## metaDf should have samples x data where row names are sampleIDs corresponding to the normDf column data
+## colour.opt: str | column in metaDf to use for colouring the points
+## log: bool | whether to log2(x+1) counts or not
+## axes: numeric | vector of length 2 for the PCs to plot in x,y axes respectively
+## label_samples: bool | whether or not to add text labels to the samples
+## title: str | plot title
+## return_data: bool | if TRUE, will return the PCA object from FactoMineR instead of a plot (default: FALSE)
+PCA.plot <- function(normDf, 
+                     metaDf,
+                     colour.opt = NULL,
+                     log = FALSE,
+                     axes = 1:2,
+                     label_samples = TRUE,
+                     title = "PCA Score Plot",
+                     return_data = FALSE
+                     ) {
+  if (log == TRUE) {
+    mtx <- t(log2(normDf + 1)) %>% as.data.frame()
+  } else {
+    mtx <- t(normDf) %>% as.data.frame()
+  }
+  
+  # Initial PCA
+  res.pca <- PCA(mtx, scale.unit = TRUE, graph = FALSE)
+
+  # Number of components to use
+  nComp <- data.frame(res.pca$eig) %>% 
+    filter(cumulative.percentage.of.variance < 95) %>% 
+    nrow()
+
+  # redo PCA with nComp
+  res.pca <- PCA(mtx, ncp = nComp, graph = FALSE)
+
+  # standard to view just the first 2 axes (more just to see whether the experimental design separates)
+  score.df <- facto_summarize(res.pca,'ind', axes = axes)
+  score.df <- merge(score.df, metaDf, by = 0)
+
+  # pct variances
+  comp.axes <- paste('comp', axes, sep = " ")
+  dim.axes <- paste('Dim', axes, sep = ".")
+  dim.x <- res.pca$eig[comp.axes[1], 'percentage of variance']
+  dim.y <- res.pca$eig[comp.axes[2], 'percentage of variance']
+  
+  if (!is.null(colour.opt)) {
+      p1 <- ggplot(score.df, 
+                   aes(x = .data[[dim.axes[1]]], 
+                       y = .data[[dim.axes[2]]], 
+                       col = .data[[colour.opt]])) +
+      geom_point(size = 3) +
+      geom_hline(yintercept = 0, linetype = 'dashed') +
+      geom_vline(xintercept = 0, linetype = 'dashed') +
+      labs(title = title,
+           x = sprintf("Dim %s (%#.2f%%)", axes[1], dim.x), 
+           y = sprintf("Dim %s (%#.2f%%)", axes[2], dim.y)) +
+      theme_bw() +
+      theme(plot.title = element_text(hjust=0.5))
+    } else {
+      p1 <- ggplot(score.df, 
+                   aes(x = .data[[dim.axes[1]]], 
+                       y = .data[[dim.axes[2]]])) +
+      geom_point(size = 3) +
+      geom_hline(yintercept = 0, linetype = 'dashed') +
+      geom_vline(xintercept = 0, linetype = 'dashed') +
+      labs(title = title,
+           x = sprintf("Dim %s (%#.2f%%)", axes[1], dim.x), 
+           y = sprintf("Dim %s (%#.2f%%)", axes[2], dim.y)) +
+      theme_bw() +
+      theme(plot.title = element_text(hjust=0.5))
+    }
+  
+  if (label_samples == TRUE) {
+    p1 <- p1 +
+      ggrepel::geom_text_repel(aes(label = name), size= 3)
+  }
+  if (return_data) {
+    return(res.pca)
+  } else {
+    return(p1)
+  }
+}
+```
+
+```{r}
+
+wgcna_threshold_plot <- function(sft, yintercept = 0.6) {
+  require("patchwork")
+  scale.ind <- ggplot(sft$fitIndices) +
+    geom_text(aes(x = Power, y = -sign(slope)*SFT.R.sq, label = Power), color = 'red') +
+    geom_hline(yintercept = yintercept, color = "red") +
+    labs(x = "Soft Threshold (power)",
+         y = "Scale Free Topology Model Fit, signed R^2",
+         title = "Scale independence") +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  
+  mean.k <- ggplot(sft$fitIndices,) +
+  geom_text(aes(x = Power, y = mean.k., label = Power), color = "red") +
+  labs(x = "Soft Threshold (power)",
+       y = "Mean Connectivity",
+       title = "Mean Connectivity") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  
+  pwPlot <- scale.ind + mean.k + plot_layout(ncol = 2)
+  return(pwPlot)
+}
+```
+
+# Read Files
+
+```{r}
+
+g52 <- readRDS('./model/uromol_train_RF2_70pct_SHAP_genes.rds')
+cid <- readRDS('./model/uromol_train_test_indices.rds')
+idx <- cid$train_test
+uromol.expr <- readRDS('./data_cleaned/expression/uromol_expression.rds')
+knowles.expr <- readRDS('./data_cleaned/expression/knowles_expression.rds')
+
+uromol.clin <- readRDS('./data_cleaned/clinical/uromol_clinical_data.rds')
+knowles.clin <- readRDS('./data_cleaned/clinical/knowles_clinical_data.rds')
+
+
+# split for train-test
+# training data + filter for genes to include
+uromol.expr.train <- uromol.expr[idx, g52]
+uromol.clin.train <- uromol.clin[idx, ]
+
+knowles.expr <- knowles.expr[rownames(knowles.clin), g52]
+```
+
+# Calculate ROR
+
+-   Idea is from PAM50 paper (<https://pmc.ncbi.nlm.nih.gov/articles/PMC2667820/#abstract1>)
+
+-   survival analysis with the selected genes
+
+-   sum of genes + coefficients as ROR
+
+```{r}
+
+uromol.expr.train.scaled <- scale(uromol.expr.train) # this is the same as training in caret
+
+uromol.train.coxph.df <- cbind(data.frame(uromol.expr.train.scaled),
+                               uromol.clin.train %>% select(RFS_time),
+                               uromol.clin.train %>% select(recurrence_at_36mths)
+                               ) %>%
+  mutate(recurrence_at_36mths = case_match(recurrence_at_36mths,
+                                           'Yes' ~ 1,
+                                           'No' ~ 0)
+         )
+```
+
+## Cox model
+
+```{r}
+
+uromol.train.cox <- coxph(Surv(RFS_time, recurrence_at_36mths) ~ ., data=uromol.train.coxph.df)
+
+#coefs
+uromol.train.cox_coefs <- coef(uromol.train.cox)
+```
+
+```{r}
+
+saveRDS(uromol.train.cox_coefs, file = './model/ROR_model_coefs.rds')
+```
+
+## ROR scores
+
+```{r}
+
+# convert to risk score (coef * scaled expr)
+uromol.train.risk <- as.matrix(uromol.train.coxph.df[, g52]) %*% uromol.train.cox_coefs
+
+uromol.train.coxph.df <- uromol.train.coxph.df %>%
+  mutate(ROR_score = uromol.train.risk[,1])
+```
+
+# Threshold
+
+```{r}
+
+ggviolin(uromol.train.coxph.df,
+         x = 'recurrence_at_36mths',
+         y = 'ROR_score',
+         add = 'boxplot', 
+         fill = 'recurrence_at_36mths'
+         ) +
+  ggpubr::stat_compare_means(comparisons = list(c(0, 1)), 
+                             method = "t.test", 
+                             label = 'p.format'
+                             ) +
+  scale_fill_manual(values = c(`0` = 'steelblue', `1` = 'salmon')) +
+  scale_x_discrete(labels = c('No', 'Yes')) + 
+  guides(fill = FALSE)
+```
+
+```{r}
+
+pr <- pr.curve(scores.class0 = uromol.train.coxph.df %>% filter(recurrence_at_36mths == 0) %>% pull(ROR_score),
+               scores.class1 = uromol.train.coxph.df %>% filter(recurrence_at_36mths == 1) %>% pull(ROR_score),
+               curve = TRUE
+               )
+
+pdf("./plots/evaluation/uromol_RNAseq_ROR_PRAUC.pdf", width = 5, height = 4)
+plot(pr)
+dev.off()
+```
+
+```{r}
+
+pr$curve # based on this, if I want higher recall of 0.625, I'd get precision of 0.282, and use ROR of -1 (approx) to classify them (row 31)
+```
+
+```{r}
+
+uromol.train.coxph.df <- uromol.train.coxph.df %>%
+  mutate(ROR_level = case_when(ROR_score > -1 ~ "High",
+                               ROR_score <= -1 ~ "Low"))
+```
+
+```{r}
+
+km.ROR.fit <- survfit(Surv(RFS_time, event = recurrence_at_36mths) ~ ROR_level, 
+                      data=uromol.train.coxph.df)
+
+ROR.kmplot <- autoplot(km.ROR.fit, 
+                       main = "UROMOL Training Cohort",
+                       xlab = "Time to Recurrence",
+                       ylab = "36-month recurrence-free survival") +
+  scale_colour_discrete(palette = "Set2", name = "ROR level") +
+  scale_fill_discrete(palette = "Set2", name = "ROR level") +
+  theme_bw()
+
+ggsave("./plots/evaluation/km_survival_ROR_stratified_uromol_train.pdf", ROR.kmplot, width = 6, height = 4)
+```
+
+```{r}
+
+uromol.train.conf_mat_df <- uromol.train.coxph.df %>%
+    mutate(pred_recurrence_36mths = case_match(ROR_level,
+                                               "High" ~ 1,
+                                               "Low" ~ 0),
+           pred_recurrence_36mths = factor(pred_recurrence_36mths, levels = c(0,1)),
+           recurrence_at_36mths_binary = factor(recurrence_at_36mths, levels = c(0,1)
+                                                )
+           )
+
+uromol.train.ror.conf_mtx <- plot_conf_mat(uromol.train.conf_mat_df$pred_recurrence_36mths,
+                              uromol.train.conf_mat_df$recurrence_at_36mths_binary) +
+
+  labs(title = "UROMOL Training Cohort")
+```
+
+```{r}
+
+ggsave("./plots/evaluation/confusion_matrix_ROR_stratified_uromol.train.pdf",
+       uromol.train.ror.conf_mtx,
+       width = 5,
+       height = 4)
+```
+
+# Evaluate on test
+
+```{r}
+
+train.means <- colMeans(uromol.expr.train)
+train.sd <- apply(uromol.expr.train, 2, sd)
+```
+
+```{r}
+
+evaluate.ROR <- function(expr.data, metadata, geneset, plot.title = "Training") {
+  comb.df <- merge(expr.data[, geneset], metadata, by = 0)
+  cox_coefs <- readRDS('./model/ROR_model_coefs.rds')
+  # convert to risk score (coef * scaled expr)
+  risk <- as.matrix(comb.df[, geneset]) %*% cox_coefs
+  
+  cox.df <- comb.df %>%
+    mutate(ROR_score = risk[,1],
+           ROR_level = case_when(ROR_score > -1 ~ "High",
+                               ROR_score <= -1 ~ "Low"),
+           pred_recurrence_36mths = case_match(ROR_level,
+                                               "High" ~ 1,
+                                               "Low" ~ 0),
+           recurrence_at_36mths_binary = case_match(recurrence_at_36mths,
+                                             "Yes" ~ 1,
+                                             "No" ~ 0)
+           )
+  
+  km.ROR.fit <- survfit(Surv(RFS_time, event = recurrence_at_36mths_binary) ~ ROR_level,
+                      data=cox.df)
+
+  ROR.kmplot <- autoplot(km.ROR.fit,
+                         main = plot.title,
+                         xlab = "Time to Recurrence",
+                         ylab = "36-month recurrence-free survival") +
+    scale_colour_manual(values = c("High" = "#66C2A5",
+                                   "Low" = "#FC8D62"), name = "ROR level") +
+    scale_fill_manual(values = c("High" = "#66C2A5",
+                                   "Low" = "#FC8D62"), name = "ROR level") +
+    theme_bw()
+  
+  conf_mat_df <- cox.df %>%
+    mutate(pred_recurrence_36mths = factor(pred_recurrence_36mths, levels = c(0,1)),
+           recurrence_at_36mths_binary = factor(recurrence_at_36mths_binary, levels = c(0,1)
+                                                )
+           )
+  ror.conf_mtx <- plot_conf_mat(conf_mat_df$pred_recurrence_36mths,
+                                conf_mat_df$recurrence_at_36mths_binary) +
+  labs(title = plot.title)
+  return(list(km = ROR.kmplot, conf.mtx = ror.conf_mtx, cox.df = conf_mat_df))
+}
+```
+
+```{r}
+
+uromol.expr.test <- scale(uromol.expr[-idx, g52], center = train.means, scale = train.sd)
+uromol.clin.test <- uromol.clin[-idx, ]
+
+uromol.test.ROR.plots <- evaluate.ROR(uromol.expr.test,
+                                     metadata = uromol.clin.test,
+                                     geneset = g52,
+                                     plot.title = "UROMOL Test Cohort")
+```
+
+```{r}
+
+ggsave("./plots/evaluation/km_survival_ROR_stratified_uromol_test.pdf",
+       uromol.test.ROR.plots$km,
+       width = 6,
+       height = 4
+       )
+
+ggsave("./plots/evaluation/confusion_matrix_ROR_stratified_uromol_test.pdf",
+       uromol.test.ROR.plots$conf.mtx,
+       width = 5,
+       height = 4
+       )
+```
+
+# Evaluate on knowles
+
+```{r}
+
+knowles.expr.scaled <- scale(knowles.expr[,g52], center = train.means, scale = train.sd)
+
+knowles.ROR.plots <- evaluate.ROR(knowles.expr.scaled,
+                                  metadata = knowles.clin,
+                                  geneset = g52,
+                                  plot.title = "Knowles Cohort")
+```
+
+```{r}
+
+ggsave("./plots/evaluation/km_survival_ROR_stratified_knowles.pdf",
+       knowles.ROR.plots$km,
+       width = 6,
+       height = 4
+       )
+
+ggsave("./plots/evaluation/confusion_matrix_ROR_stratified_knowles.pdf",
+       knowles.ROR.plots$conf.mtx,
+       width = 5,
+       height = 4
+       )
+```

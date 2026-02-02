@@ -1,0 +1,136 @@
+---
+title: "Data cleaning"
+output: html_notebook
+---
+
+# Libraries
+
+```{r}
+
+# Data cleaning
+library(tidyverse)
+
+# Parallelization
+library(doParallel)
+
+# Graphing packages
+library(ggfortify)
+library(ggplot2)
+library(patchwork)
+library(ComplexHeatmap)
+
+# ML packages
+library(survival)
+```
+
+# Read Files
+
+```{r}
+
+knowles <- readRDS("./knowles_matched_TaLG_final.rds") # validation set
+uromol <- readRDS("./UROMOL_TaLG.teachingcohort.rds") # training set
+```
+
+# Clinical Parameter Check
+
+```{r}
+
+str(uromol)
+```
+
+```{r}
+
+uromol.clin <- subset(uromol, select = -c(exprs))
+```
+
+```{r}
+
+summary(uromol.clin)
+```
+
+```{r}
+
+uromol.clin[!complete.cases(uromol.clin),] # given that i probably won't use every clinical parameter, i'd probably not drop samples with some NAs
+
+uromol.clin[is.na(uromol.clin$RFS_time),] # have to use RFS/recurrence
+
+uromol.clin.complete <- na.omit(uromol.clin, cols = c('RFS_time', 'Recurrence'))
+```
+
+```{r}
+
+km <- with(uromol.clin.complete, Surv(RFS_time, Recurrence))
+km_fit <- survfit(Surv(RFS_time, Recurrence) ~ BCG, data=uromol.clin.complete)
+
+p1 <- autoplot(km_fit, ylab = "Recurrence", xlab = "Time to Recurrence") +
+  scale_colour_discrete(palette = "Set2", name = "BCG Treatment") +
+  scale_fill_discrete(palette = "Set2", name = "BCG Treatment") +
+  theme_bw()
+
+# ggsave("./plots/km_survival_BCG_stratified.pdf", p1, width = 6, height = 4)
+```
+
+```{r}
+
+# retain only clinical parameters to use
+uromol.clin.complete.int <- uromol.clin.complete[, c(4,5,7,8,9,12,13,14,15,16,17)]
+uromol.clin.complete.int <- uromol.clin.complete.int %>%
+  mutate(Tumor.size = factor(Tumor.size, 
+                             levels = c("< 3 cm", ">= 3 cm"), 
+                             labels = c("under3", "over3")),
+         Incident.tumor = factor(Incident.tumor, levels = c("No", "Yes")),
+         Concomitant.CIS = factor(Concomitant.CIS, levels = c("No", "Yes")),
+         Sex = factor(Sex, levels = c("M", "F")),
+         EAU.risk = factor(EAU.risk, levels = c("Low", "Intermediate", "High")),
+         Smoking = factor(Smoking, levels = c("Never", "Former", "Current")),
+         UROMOL2021.classification = factor(UROMOL2021.classification,
+                                            levels = c("Class 1","Class 2a",
+                                                       "Class 2b","Class 3"),
+                                            labels = c('C1','C2a','C2b','C3')),
+         BCG = factor(BCG, levels = c(0,1), c("No", "Yes")),
+         Recurrence = case_match(as.character(Recurrence),
+                                 "0" ~ 'No',
+                                 "1" ~ 'Yes'),
+         recurrence_at_36mths = case_when(RFS_time <= 36 & Recurrence == "Yes" ~ "Yes",
+                                         .default = "No"),
+         recurrence_at_36mths = factor(recurrence_at_36mths, levels = c("No", "Yes"))
+         )
+
+
+# retain only clinical parameters to use (Knowles)
+knowles.clin <- subset(knowles, select = -c(exprs))
+knowles.clin.complete <- knowles.clin[!is.na(knowles.clin$RFS_time),]
+knowles.clin.complete.int <- knowles.clin.complete[, c(3,4,6,7)]
+knowles.clin.complete.int <- knowles.clin.complete.int %>%
+  mutate(
+         Sex = factor(Sex, levels = c("M", "F")),
+         Recurrence = case_match(as.character(Recurrence),
+                                 "0" ~ 'No',
+                                 "1" ~ 'Yes'),
+         recurrence_at_36mths = case_when(RFS_time <= 36 & Recurrence == "Yes" ~ "Yes",
+                                         .default = "No"),
+         recurrence_at_36mths = factor(recurrence_at_36mths, levels = c("No", "Yes"))
+         )
+```
+
+```{r}
+
+# clean expression data (by that I mean just make sure genes are in both Knowles and UROMOL)
+uromol.expr.genes <- colnames(uromol[, 'exprs'])
+knowles.expr.genes <- colnames(knowles[, 'exprs'])
+
+usable.genes <- base::intersect(uromol.expr.genes, knowles.expr.genes)
+
+uromol.expr <- data.frame(uromol[, 'exprs'][, usable.genes], check.names = FALSE)
+knowles.expr <- data.frame(knowles[, 'exprs'][, usable.genes], check.names = FALSE)
+```
+
+```{r}
+
+saveRDS(uromol.expr, file = "./data_cleaned/expression/uromol_expression.rds")
+saveRDS(knowles.expr, file = "./data_cleaned/expression/knowles_expression.rds")
+
+saveRDS(uromol.clin.complete.int, file = "./data_cleaned/clinical/uromol_clinical_data.rds")
+saveRDS(knowles.clin.complete.int, file = "./data_cleaned/clinical/knowles_clinical_data.rds")
+```
+
