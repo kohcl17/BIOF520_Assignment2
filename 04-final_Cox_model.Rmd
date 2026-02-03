@@ -194,7 +194,7 @@ wgcna_threshold_plot <- function(sft, yintercept = 0.6) {
 
 ```{r}
 
-g52 <- readRDS('./model/uromol_train_RF2_70pct_SHAP_genes.rds')
+g16 <- readRDS('./model/uromol_train_RF2_80pct_SHAP_genes.rds')
 cid <- readRDS('./model/uromol_train_test_indices.rds')
 idx <- cid$train_test
 uromol.expr <- readRDS('./data_cleaned/expression/uromol_expression.rds')
@@ -206,10 +206,10 @@ knowles.clin <- readRDS('./data_cleaned/clinical/knowles_clinical_data.rds')
 
 # split for train-test
 # training data + filter for genes to include
-uromol.expr.train <- uromol.expr[idx, g52]
+uromol.expr.train <- uromol.expr[idx, g16]
 uromol.clin.train <- uromol.clin[idx, ]
 
-knowles.expr <- knowles.expr[rownames(knowles.clin), g52]
+knowles.expr <- knowles.expr[rownames(knowles.clin), g16]
 ```
 
 # Calculate ROR
@@ -224,7 +224,7 @@ knowles.expr <- knowles.expr[rownames(knowles.clin), g52]
 
 uromol.expr.train.scaled <- scale(uromol.expr.train) # this is the same as training in caret
 
-uromol.train.coxph.df <- cbind(data.frame(uromol.expr.train.scaled),
+uromol.train.coxph.df <- cbind(data.frame(uromol.expr.train.scaled, check.names = FALSE),
                                uromol.clin.train %>% select(RFS_time),
                                uromol.clin.train %>% select(recurrence_at_36mths)
                                ) %>%
@@ -254,7 +254,7 @@ saveRDS(uromol.train.cox_coefs, file = './model/ROR_model_coefs.rds')
 ```{r}
 
 # convert to risk score (coef * scaled expr)
-uromol.train.risk <- as.matrix(uromol.train.coxph.df[, g52]) %*% uromol.train.cox_coefs
+uromol.train.risk <- as.matrix(uromol.train.coxph.df[, g16]) %*% uromol.train.cox_coefs
 
 uromol.train.coxph.df <- uromol.train.coxph.df %>%
   mutate(ROR_score = uromol.train.risk[,1])
@@ -275,8 +275,7 @@ ggviolin(uromol.train.coxph.df,
                              label = 'p.format'
                              ) +
   scale_fill_manual(values = c(`0` = 'steelblue', `1` = 'salmon')) +
-  scale_x_discrete(labels = c('No', 'Yes')) + 
-  guides(fill = FALSE)
+  scale_x_discrete(labels = c('No', 'Yes'))
 ```
 
 ```{r}
@@ -293,14 +292,14 @@ dev.off()
 
 ```{r}
 
-pr$curve # based on this, if I want higher recall of 0.625, I'd get precision of 0.282, and use ROR of -1 (approx) to classify them (row 31)
+pr$curve # based on row 17: recall - 0.8500 precision - 0.31627907 threshold - -1.010441036
 ```
 
 ```{r}
 
 uromol.train.coxph.df <- uromol.train.coxph.df %>%
-  mutate(ROR_level = case_when(ROR_score > -1 ~ "High",
-                               ROR_score <= -1 ~ "Low"))
+  mutate(ROR_level = case_when(ROR_score > -1.01 ~ "High",
+                               ROR_score <= -1.01 ~ "Low"))
 ```
 
 ```{r}
@@ -362,8 +361,8 @@ evaluate.ROR <- function(expr.data, metadata, geneset, plot.title = "Training") 
   
   cox.df <- comb.df %>%
     mutate(ROR_score = risk[,1],
-           ROR_level = case_when(ROR_score > -1 ~ "High",
-                               ROR_score <= -1 ~ "Low"),
+           ROR_level = case_when(ROR_score > -1.01 ~ "High",
+                               ROR_score <= -1.01 ~ "Low"),
            pred_recurrence_36mths = case_match(ROR_level,
                                                "High" ~ 1,
                                                "Low" ~ 0),
@@ -374,17 +373,19 @@ evaluate.ROR <- function(expr.data, metadata, geneset, plot.title = "Training") 
   
   km.ROR.fit <- survfit(Surv(RFS_time, event = recurrence_at_36mths_binary) ~ ROR_level,
                       data=cox.df)
-
+  
   ROR.kmplot <- autoplot(km.ROR.fit,
                          main = plot.title,
                          xlab = "Time to Recurrence",
-                         ylab = "36-month recurrence-free survival") +
+                         ylab = "36-month recurrence-free survival",
+                         conf.int = TRUE
+                         ) +
     scale_colour_manual(values = c("High" = "#66C2A5",
                                    "Low" = "#FC8D62"), name = "ROR level") +
     scale_fill_manual(values = c("High" = "#66C2A5",
                                    "Low" = "#FC8D62"), name = "ROR level") +
     theme_bw()
-  
+
   conf_mat_df <- cox.df %>%
     mutate(pred_recurrence_36mths = factor(pred_recurrence_36mths, levels = c(0,1)),
            recurrence_at_36mths_binary = factor(recurrence_at_36mths_binary, levels = c(0,1)
@@ -393,23 +394,26 @@ evaluate.ROR <- function(expr.data, metadata, geneset, plot.title = "Training") 
   ror.conf_mtx <- plot_conf_mat(conf_mat_df$pred_recurrence_36mths,
                                 conf_mat_df$recurrence_at_36mths_binary) +
   labs(title = plot.title)
-  return(list(km = ROR.kmplot, conf.mtx = ror.conf_mtx, cox.df = conf_mat_df))
+  return(list(km = ROR.kmplot, 
+              conf.mtx = ror.conf_mtx, 
+              cox.df = conf_mat_df))
 }
 ```
 
 ```{r}
 
-uromol.expr.test <- scale(uromol.expr[-idx, g52], center = train.means, scale = train.sd)
+uromol.expr.test <- scale(uromol.expr[-idx, g16], center = train.means, scale = train.sd)
 uromol.clin.test <- uromol.clin[-idx, ]
 
 uromol.test.ROR.plots <- evaluate.ROR(uromol.expr.test,
                                      metadata = uromol.clin.test,
-                                     geneset = g52,
+                                     geneset = g16,
                                      plot.title = "UROMOL Test Cohort")
 ```
 
 ```{r}
 
+# confidence interval can't be plotted because the n is too small
 ggsave("./plots/evaluation/km_survival_ROR_stratified_uromol_test.pdf",
        uromol.test.ROR.plots$km,
        width = 6,
@@ -427,11 +431,11 @@ ggsave("./plots/evaluation/confusion_matrix_ROR_stratified_uromol_test.pdf",
 
 ```{r}
 
-knowles.expr.scaled <- scale(knowles.expr[,g52], center = train.means, scale = train.sd)
+knowles.expr.scaled <- scale(knowles.expr[,g16], center = train.means, scale = train.sd)
 
 knowles.ROR.plots <- evaluate.ROR(knowles.expr.scaled,
                                   metadata = knowles.clin,
-                                  geneset = g52,
+                                  geneset = g16,
                                   plot.title = "Knowles Cohort")
 ```
 
@@ -448,4 +452,22 @@ ggsave("./plots/evaluation/confusion_matrix_ROR_stratified_knowles.pdf",
        width = 5,
        height = 4
        )
+```
+
+# Correlate ROR with age
+
+```{r}
+
+comb.df <- merge(uromol.expr.train[, g16], uromol.clin.train, by = 0)
+cox_coefs <- readRDS('./model/ROR_model_coefs.rds')
+# convert to risk score (coef * scaled expr)
+risk.train <- as.matrix(comb.df[, g16]) %*% cox_coefs
+```
+
+```{r}
+
+comb.df %>%
+  mutate(ROR_score = risk.train[,1]) %>%
+  ggplot(aes(x = Age, y = ROR_score, color = Incident.tumor)) +
+  geom_point()
 ```

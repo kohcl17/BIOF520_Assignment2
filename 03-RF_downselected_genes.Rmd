@@ -262,7 +262,7 @@ ggsave("./plots/evaluation/uromol_RNAseq_criteria_genes_PRAUC_plot.pdf",
 
 ## Feature Importance
 
-```{r}
+```{r warning=FALSE}
 
 registerDoParallel(cores = 6)  # use forking with 6 cores
 rf.bestModel2.shap <- fastshap::explain(rf.bestModel2,
@@ -307,7 +307,7 @@ rf.bestModel2.shap.summary <- colMeans(data.frame(abs(rf.bestModel2.shap$shapley
 rf.bestModel2.shap.summary$cumu_importance <- cumsum(rf.bestModel2.shap.summary$mean_abs_SHAP)
 rf.bestModel2.shap.summary$frac_cumu_importance <- rf.bestModel2.shap.summary$cumu_importance/sum(rf.bestModel2.shap.summary$mean_abs_SHAP)
 
-keep.fraction <- 0.7
+keep.fraction <- 0.8
 
 cumu.importance.model2.plot <- ggplot(rf.bestModel2.shap.summary, 
                                  aes(x = feature, y = frac_cumu_importance)) +
@@ -325,12 +325,12 @@ cumu.importance.model2.plot <- ggplot(rf.bestModel2.shap.summary,
 ```{r}
 
 rf.bestModel2.features <- rf.bestModel2.shap.summary %>%
-  filter(frac_cumu_importance <= 0.7) %>%
+  filter(frac_cumu_importance <= keep.fraction) %>%
   pull(feature) %>%
   as.character()
 ```
 
 ```{r}
 
-saveRDS(rf.bestModel2.features, file = "./model/uromol_train_RF2_70pct_SHAP_genes.rds")
+saveRDS(rf.bestModel2.features, file = "./model/uromol_train_RF2_80pct_SHAP_genes.rds")
 ```

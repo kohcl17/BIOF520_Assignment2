@@ -460,13 +460,13 @@ cor.MEs <- cor(ME.uromol.train.mtx,
                y = ifelse(uromol.clin.train$recurrence_at_36mths == "Yes", 1, -1),
     use = "p", method = "pearson")
 
-selectedMEs <- rownames(cor.MEs)[cor.MEs > 0.1 | cor.MEs < -0.1]
+selectedMEs <- rownames(cor.MEs)[cor.MEs > 0.2 | cor.MEs < -0.2]
 selectedMEs.mtx <- ME.uromol.train.mtx[, selectedMEs]
 ```
 
 # RF from WGCNA MEs
 
-```{r}
+```{r, warning=FALSE}
 
 rf_grid <- expand.grid(
   mtry = seq(1, 5),
@@ -505,7 +505,7 @@ ggsave('./plots/evaluation/uromol_train_WGCNA_RF_PRAUC.pdf',
 
 ### SHAP
 
-```{r}
+```{r warning=FALSE}
 
 registerDoParallel(cores = 6)  # use forking with 6 cores
 rf.bestModel1.shap <- fastshap::explain(rf.bestModel1,
@@ -571,9 +571,9 @@ saveRDS(list(fullDE = DEtable, sigDE = DEGs), file = './model/uromol_train_limma
 
 # Gene overlap and final feature selection
 
-1.  genes in blue, red, lightyellow, lightgreen modules
+1.  genes in all modules except last (turquoise)
 2.  significant DEGs
-3.  protein-coding
+3.  protein-coding (all of 1 & 2 are protein-coding)
 4.  also in microarray (already pre-filtered this prior to running any analysis!)
 
 ```{r}
