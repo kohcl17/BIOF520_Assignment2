@@ -2,5 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
-assignment2_report.docx
-*.nb.html
+./assignment2_report.docx
+./*.nb.html
