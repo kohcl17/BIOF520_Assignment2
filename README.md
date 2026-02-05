@@ -5,7 +5,7 @@ This github repository contains the necessary indices and outputs from the ML cl
 - plots/ contains all the graphs exported from these notebooks
 - model/
     - train-test split indices
-    - features used in the ML classifier
+    - features used in the ML classifier \
     *Caveat*: The raw models were not exported as an rds but it should be reproducible regardless
 - data_cleaned/
     - clinical and expression data after preprocessing in 01-preprocessing.Rmd
