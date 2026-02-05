@@ -1,12 +1,9 @@
----
-title: "03- Random Forest Model 2 (Downselected Genes)"
-output: github_document
----
+03- Random Forest Model 2 (Downselected Genes)
+================
 
 # Libraries
 
-```{r message=FALSE, warning=FALSE}
-
+``` r
 # Data cleaning
 library(tidyverse)
 
@@ -37,8 +34,7 @@ library(WGCNA)
 
 # Functions
 
-```{r}
-
+``` r
 pfun <- function(object, newdata) {
   predict(object, data = newdata)$predictions[, "Yes"]
 }
@@ -58,8 +54,7 @@ prep_new_data <- function(gene_expr) {
 }
 ```
 
-```{r}
-
+``` r
 plot_conf_mat <- function(test_pred, test_obs) {
   cm <- caret::confusionMatrix(test_pred, as.factor(test_obs))
   cm.tbl <- cm$table %>%
@@ -76,8 +71,7 @@ plot_conf_mat <- function(test_pred, test_obs) {
 }
 ```
 
-```{r}
-
+``` r
 # Built a function for this
 
 ## normDf should be genes (row names) x samples. Should be normalized, non-logged is fine, just use log = TRUE
@@ -163,8 +157,7 @@ PCA.plot <- function(normDf,
 }
 ```
 
-```{r}
-
+``` r
 wgcna_threshold_plot <- function(sft, yintercept = 0.6) {
   require("patchwork")
   scale.ind <- ggplot(sft$fitIndices) +
@@ -191,8 +184,7 @@ wgcna_threshold_plot <- function(sft, yintercept = 0.6) {
 
 # Read Files
 
-```{r}
-
+``` r
 genes.inc <- readRDS('./model/uromol_train_criteria_genes.rds')
 uromol.expr <- readRDS('./data_cleaned/expression/uromol_expression.rds')
 uromol.clin <- readRDS('./data_cleaned/clinical/uromol_clinical_data.rds')
@@ -205,7 +197,6 @@ cv_idx <- cid$cv
 # training data + filter for genes to include
 uromol.expr.train <- uromol.expr[idx, genes.inc]
 uromol.clin.train <- uromol.clin[idx, ]
-
 ```
 
 # RF model for downselected genes
@@ -217,8 +208,7 @@ Genes were selected based on:
 3.  protein-coding
 4.  found in microarray
 
-```{r warning=FALSE}
-
+``` r
 ctrl <- trainControl(
   method = "cv",
   index = cv_idx,
@@ -250,10 +240,52 @@ rf.model2 <- caret::train(
 
 # Evaluation
 
-```{r}
-
+``` r
 rf.bestModel2 <- rf.model2$finalModel
 rf.model2.eval <- evalm(rf.model2)
+```
+
+    ## ***MLeval: Machine Learning Model Evaluation***
+
+    ## Input: caret train function object
+
+    ## Not averaging probs.
+
+    ## Group 1 type: cv
+
+    ## Observations: 230
+
+    ## Number of groups: 1
+
+    ## Observations per group: 230
+
+    ## Positive: Yes
+
+    ## Negative: No
+
+    ## Group: Group 1
+
+    ## Positive: 150
+
+    ## Negative: 80
+
+    ## ***Performance Metrics***
+
+    ## Warning: Using `size` aesthetic for lines was deprecated in ggplot2 3.4.0.
+    ## ℹ Please use `linewidth` instead.
+    ## ℹ The deprecated feature was likely used in the MLeval package.
+    ##   Please report the issue to the authors.
+    ## This warning is displayed once per session.
+    ## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was
+    ## generated.
+
+![](03-RF_downselected_genes_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->![](03-RF_downselected_genes_files/figure-gfm/unnamed-chunk-8-2.png)<!-- -->![](03-RF_downselected_genes_files/figure-gfm/unnamed-chunk-8-3.png)<!-- -->![](03-RF_downselected_genes_files/figure-gfm/unnamed-chunk-8-4.png)<!-- -->
+
+    ## Group 1 Optimal Informedness = 0.3075
+
+    ## Group 1 AUC-ROC = 0.68
+
+``` r
 ggsave("./plots/evaluation/uromol_RNAseq_criteria_genes_PRAUC_plot.pdf", 
        rf.model2.eval$proc,
        width = 5,
@@ -262,8 +294,7 @@ ggsave("./plots/evaluation/uromol_RNAseq_criteria_genes_PRAUC_plot.pdf",
 
 ## Feature Importance
 
-```{r warning=FALSE}
-
+``` r
 registerDoParallel(cores = 6)  # use forking with 6 cores
 rf.bestModel2.shap <- fastshap::explain(rf.bestModel2,
                                         X = uromol.expr.train, 
@@ -276,11 +307,19 @@ rf.bestModel2.shap <- fastshap::explain(rf.bestModel2,
 shap.model2.p1 <- sv_waterfall(shapviz(rf.bestModel2.shap), 
                         row_id = 1:nrow(rf.bestModel2.shap$feature_values)) +
   theme(margins = margin(1))
+```
 
+    ## Aggregating SHAP values over 230 observations
+
+``` r
 shap.model2.p2 <- sv_force(shapviz(rf.bestModel2.shap), 
                     row_id = 1:nrow(rf.bestModel2.shap$feature_values)) +
   theme(margins = margin(1))
+```
 
+    ## Aggregating SHAP values over 230 observations
+
+``` r
 shap.model2.p3 <- sv_importance(shapviz(rf.bestModel2.shap)) +
   labs(title = "SHAP Probability(Recurrence = Yes)") +
   scale_x_continuous(expand = expansion(add = c(0, 0.001))) +
@@ -295,8 +334,7 @@ ggsave("./plots/evaluation/uromol_RNAseq_criteria_genes_shap_plots.pdf",
        width = 6, height = 9)
 ```
 
-```{r}
-
+``` r
 rf.bestModel2.shap.summary <- colMeans(data.frame(abs(rf.bestModel2.shap$shapley_values), check.names = FALSE)) %>%
   data.frame(check.names = FALSE) %>%
   rename(mean_abs_SHAP = ".") %>%
@@ -322,15 +360,13 @@ cumu.importance.model2.plot <- ggplot(rf.bestModel2.shap.summary,
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 ```
 
-```{r}
-
+``` r
 rf.bestModel2.features <- rf.bestModel2.shap.summary %>%
   filter(frac_cumu_importance <= keep.fraction) %>%
   pull(feature) %>%
   as.character()
 ```
 
-```{r}
-
+``` r
 saveRDS(rf.bestModel2.features, file = "./model/uromol_train_RF2_80pct_SHAP_genes.rds")
 ```

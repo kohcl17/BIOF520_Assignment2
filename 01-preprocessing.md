@@ -1,16 +1,9 @@
----
-title: "Data cleaning"
-output: github_document
----
-
-```{r setup, include = FALSE}
-knitr::opts_chunk$set(eval = FALSE)
-```
+Data cleaning
+================
 
 # Libraries
 
-```{r}
-
+``` r
 # Data cleaning
 library(tidyverse)
 
@@ -29,36 +22,30 @@ library(survival)
 
 # Read Files
 
-```{r}
-
+``` r
 knowles <- readRDS("./knowles_matched_TaLG_final.rds") # validation set
 uromol <- readRDS("./UROMOL_TaLG.teachingcohort.rds") # training set
 ```
 
 # Clinical Parameter Check
 
-```{r}
-
+``` r
 str(uromol)
 ```
 
-```{r}
-
+``` r
 uromol.clin <- subset(uromol, select = -c(exprs))
 ```
 
-```{r}
-
+``` r
 summary(uromol.clin)
 ```
 
-```{r}
-
+``` r
 uromol.clin[!complete.cases(uromol.clin),] # given that i probably won't use every clinical parameter, i'd probably not drop samples with some NAs
 ```
 
-```{r}
-
+``` r
 km <- with(uromol.clin, Surv(RFS_time, Recurrence))
 km_fit <- survfit(Surv(RFS_time, Recurrence) ~ BCG, data=uromol.clin)
 
@@ -68,8 +55,7 @@ p1 <- autoplot(km_fit, ylab = "Recurrence", xlab = "Time to Recurrence") +
   theme_bw()
 ```
 
-```{r}
-
+``` r
 # retain only clinical parameters to use
 uromol.clin.int <- uromol.clin[, c(4,5,7,8,9,12,13,14,15,16,17)]
 uromol.clin.int <- uromol.clin.int %>%
@@ -110,8 +96,7 @@ knowles.clin.int <- knowles.clin.int %>%
          )
 ```
 
-```{r}
-
+``` r
 # clean expression data (by that I mean just make sure genes are in both Knowles and UROMOL)
 uromol.expr.genes <- colnames(uromol[, 'exprs'])
 knowles.expr.genes <- colnames(knowles[, 'exprs'])
@@ -122,8 +107,7 @@ uromol.expr <- data.frame(uromol[, 'exprs'][, usable.genes], check.names = FALSE
 knowles.expr <- data.frame(knowles[, 'exprs'][, usable.genes], check.names = FALSE)
 ```
 
-```{r}
-
+``` r
 saveRDS(uromol.expr, file = "./data_cleaned/expression/uromol_expression.rds")
 saveRDS(knowles.expr, file = "./data_cleaned/expression/knowles_expression.rds")
 

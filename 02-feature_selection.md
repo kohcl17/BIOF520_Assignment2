@@ -1,44 +1,156 @@
----
-title: "02-Feature discovery"
-output: github_document
----
+02-Feature discovery
+================
 
 # Libraries
 
-```{r}
-
+``` r
 # Data cleaning
 library(tidyverse)
+```
 
+    ## Warning: package 'ggplot2' was built under R version 4.5.2
+
+    ## Warning: package 'tibble' was built under R version 4.5.2
+
+    ## Warning: package 'tidyr' was built under R version 4.5.2
+
+    ## Warning: package 'purrr' was built under R version 4.5.2
+
+    ## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+    ## ✔ dplyr     1.1.4     ✔ readr     2.1.5
+    ## ✔ forcats   1.0.1     ✔ stringr   1.6.0
+    ## ✔ ggplot2   4.0.1     ✔ tibble    3.3.1
+    ## ✔ lubridate 1.9.4     ✔ tidyr     1.3.2
+    ## ✔ purrr     1.2.1     
+    ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+    ## ✖ dplyr::filter() masks stats::filter()
+    ## ✖ dplyr::lag()    masks stats::lag()
+    ## ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+
+``` r
 # Parallelization
 library(doParallel)
+```
 
+    ## Loading required package: foreach
+    ## 
+    ## Attaching package: 'foreach'
+    ## 
+    ## The following objects are masked from 'package:purrr':
+    ## 
+    ##     accumulate, when
+    ## 
+    ## Loading required package: iterators
+    ## Loading required package: parallel
+
+``` r
 # Graphing packages
 library(ggfortify)
 library(ggplot2)
 library(patchwork)
 library(shapviz)
 library(ComplexHeatmap)
+```
 
+    ## Loading required package: grid
+    ## ========================================
+    ## ComplexHeatmap version 2.24.1
+    ## Bioconductor page: http://bioconductor.org/packages/ComplexHeatmap/
+    ## Github page: https://github.com/jokergoo/ComplexHeatmap
+    ## Documentation: http://jokergoo.github.io/ComplexHeatmap-reference
+    ## 
+    ## If you use it in published research, please cite either one:
+    ## - Gu, Z. Complex Heatmap Visualization. iMeta 2022.
+    ## - Gu, Z. Complex heatmaps reveal patterns and correlations in multidimensional 
+    ##     genomic data. Bioinformatics 2016.
+    ## 
+    ## 
+    ## The new InteractiveComplexHeatmap package can directly export static 
+    ## complex heatmaps into an interactive Shiny app with zero effort. Have a try!
+    ## 
+    ## This message can be suppressed by:
+    ##   suppressPackageStartupMessages(library(ComplexHeatmap))
+    ## ========================================
+
+``` r
 # ML packages
 library(survival)
 library(caret)
+```
 
+    ## Loading required package: lattice
+    ## 
+    ## Attaching package: 'caret'
+    ## 
+    ## The following object is masked from 'package:survival':
+    ## 
+    ##     cluster
+    ## 
+    ## The following object is masked from 'package:purrr':
+    ## 
+    ##     lift
+
+``` r
 # Model Evaluation
 library(MLeval)
 library(fastshap)
-library(PRROC)
+```
 
+    ## 
+    ## Attaching package: 'fastshap'
+    ## 
+    ## The following object is masked from 'package:dplyr':
+    ## 
+    ##     explain
+
+``` r
+library(PRROC)
+```
+
+    ## Loading required package: rlang
+
+    ## Warning: package 'rlang' was built under R version 4.5.2
+
+    ## 
+    ## Attaching package: 'rlang'
+    ## 
+    ## The following objects are masked from 'package:purrr':
+    ## 
+    ##     flatten, flatten_chr, flatten_dbl, flatten_int, flatten_lgl,
+    ##     flatten_raw, invoke, splice
+
+``` r
 # DimReduction/Feature selection
 library(FactoMineR)
 library(factoextra)
+```
+
+    ## Welcome! Want to learn more? See two factoextra-related books at https://goo.gl/ve3WBa
+
+``` r
 library(WGCNA)
 ```
 
+    ## Loading required package: dynamicTreeCut
+    ## Loading required package: fastcluster
+    ## 
+    ## Attaching package: 'fastcluster'
+    ## 
+    ## The following object is masked from 'package:stats':
+    ## 
+    ##     hclust
+    ## 
+    ## 
+    ## 
+    ## Attaching package: 'WGCNA'
+    ## 
+    ## The following object is masked from 'package:stats':
+    ## 
+    ##     cor
+
 # Functions
 
-```{r}
-
+``` r
 pfun <- function(object, newdata) {
   predict(object, data = newdata)$predictions[, "Yes"]
 }
@@ -58,8 +170,7 @@ prep_new_data <- function(gene_expr) {
 }
 ```
 
-```{r}
-
+``` r
 plot_conf_mat <- function(test_pred, test_obs) {
   cm <- caret::confusionMatrix(test_pred, as.factor(test_obs))
   cm.tbl <- cm$table %>%
@@ -76,8 +187,7 @@ plot_conf_mat <- function(test_pred, test_obs) {
 }
 ```
 
-```{r}
-
+``` r
 # Built a function for this
 
 ## normDf should be genes (row names) x samples. Should be normalized, non-logged is fine, just use log = TRUE
@@ -163,8 +273,7 @@ PCA.plot <- function(normDf,
 }
 ```
 
-```{r}
-
+``` r
 wgcna_threshold_plot <- function(sft, yintercept = 0.6) {
   require("patchwork")
   scale.ind <- ggplot(sft$fitIndices) +
@@ -189,8 +298,7 @@ wgcna_threshold_plot <- function(sft, yintercept = 0.6) {
 }
 ```
 
-```{r}
-
+``` r
 annotate.genes <- function(geneList,
                            fields = c('symbol', 'name', 'summary')) {
   # See http://mygene.info/metadata/fields or https://docs.mygene.info/en/latest/doc/data.html for details on other fields available
@@ -212,8 +320,7 @@ annotate.genes <- function(geneList,
 }
 ```
 
-```{r}
-
+``` r
 # Accounts for if the DE result table is from seurat's FindAllMarkers or not
 volcano.plot <- function(results_lfc,
                          FDRthreshold = 0.05,
@@ -305,16 +412,14 @@ volcano.plot <- function(results_lfc,
 
 # Read Files
 
-```{r}
-
+``` r
 uromol.clin <- readRDS("./data_cleaned/clinical/uromol_clinical_data.rds")
 uromol.expr <- readRDS('./data_cleaned/expression/uromol_expression.rds')
 ```
 
 # Train-test split
 
-```{r}
-
+``` r
 set.seed(1243)
 idx <- caret::createDataPartition(
   uromol.clin$recurrence_at_36mths,
@@ -343,8 +448,7 @@ ctrl <- trainControl(
 )
 ```
 
-```{r}
-
+``` r
 # Save the train-test idx and cv folds
 
 saveRDS(list(train_test = idx, cv = cv_idx), "./model/uromol_train_test_indices.rds")
@@ -352,16 +456,58 @@ saveRDS(list(train_test = idx, cv = cv_idx), "./model/uromol_train_test_indices.
 
 # WGCNA
 
-```{r}
-
+``` r
 allowWGCNAThreads()
+```
+
+    ## Allowing multi-threading with up to 10 threads.
+
+``` r
 # WGCNA here
 gsg <- goodSamplesGenes(uromol.expr.train)
+```
+
+    ##  Flagging genes and samples with too many missing values...
+    ##   ..step 1
+    ##   ..step 2
+
+``` r
 uromol.expr.train <- uromol.expr.train[,gsg$goodGenes] # it was all included anyway
 powers <- c(c(1:10), seq(from = 12, to=20, by=2))# Call the network topology analysis function
 
 ## Choose a set of soft-thresholding powers
 train.sft <- pickSoftThreshold(uromol.expr.train, powerVector = powers, verbose = 5)
+```
+
+    ## pickSoftThreshold: will use block size 2344.
+    ##  pickSoftThreshold: calculating connectivity for given powers...
+    ##    ..working on genes 1 through 2344 of 19085
+    ##    ..working on genes 2345 through 4688 of 19085
+    ##    ..working on genes 4689 through 7032 of 19085
+    ##    ..working on genes 7033 through 9376 of 19085
+    ##    ..working on genes 9377 through 11720 of 19085
+    ##    ..working on genes 11721 through 14064 of 19085
+    ##    ..working on genes 14065 through 16408 of 19085
+    ##    ..working on genes 16409 through 18752 of 19085
+    ##    ..working on genes 18753 through 19085 of 19085
+    ##    Power SFT.R.sq  slope truncated.R.sq  mean.k. median.k. max.k.
+    ## 1      1   0.0366  0.592          0.953 2580.000  2.52e+03 4780.0
+    ## 2      2   0.4040 -1.040          0.970  637.000  5.70e+02 1900.0
+    ## 3      3   0.8050 -1.650          0.988  220.000  1.67e+02 1020.0
+    ## 4      4   0.8740 -1.790          0.990   93.800  5.76e+01  631.0
+    ## 5      5   0.8920 -1.810          0.992   46.100  2.22e+01  421.0
+    ## 6      6   0.9010 -1.790          0.995   25.000  9.18e+00  295.0
+    ## 7      7   0.9020 -1.790          0.994   14.600  4.03e+00  214.0
+    ## 8      8   0.9010 -1.790          0.993    8.980  1.86e+00  160.0
+    ## 9      9   0.9080 -1.770          0.997    5.770  9.02e-01  122.0
+    ## 10    10   0.9170 -1.750          0.999    3.830  4.49e-01   95.3
+    ## 11    12   0.9110 -1.750          0.997    1.830  1.23e-01   59.9
+    ## 12    14   0.9000 -1.750          0.984    0.952  3.68e-02   39.1
+    ## 13    16   0.9020 -1.740          0.994    0.527  1.16e-02   26.4
+    ## 14    18   0.9070 -1.710          0.994    0.306  3.86e-03   18.2
+    ## 15    20   0.8850 -1.730          0.984    0.186  1.36e-03   12.8
+
+``` r
 p1 <- wgcna_threshold_plot(train.sft, yintercept = 0.8) # outputs a patchwork plot
 ggsave("./plots/feature_selection/uromol_train_WGCNA_threshold.pdf", 
        p1, 
@@ -369,13 +515,13 @@ ggsave("./plots/feature_selection/uromol_train_WGCNA_threshold.pdf",
        height = 4)
 ```
 
-```{r}
-
+``` r
 p1
 ```
 
-```{r}
+![](02-feature_selection_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
 
+``` r
 ## setting threshold power based on the graph
 softPower <- 5
 
@@ -393,8 +539,9 @@ net <- blockwiseModules(
 )
 ```
 
-```{r}
+    ##  Calculating module eigengenes block-wise from all genes
 
+``` r
 mergedColors = labels2colors(net$colors)
 # Plot the dendrogram and the module colors underneath
 
@@ -409,21 +556,20 @@ plotDendroAndColors(
   guideHang = 0.05 )
 ```
 
-```{r}
+![](02-feature_selection_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
 
+``` r
 module_df <- data.frame(
   gene_id = names(net$colors),
   colors = mergedColors
 )
 ```
 
-```{r}
-
+``` r
 saveRDS(module_df, "./model/uromol_train_WGCNA_modules.rds")
 ```
 
-```{r}
-
+``` r
 # this is what we input into our first model
 ME.uromol.train <- moduleEigengenes(uromol.expr.train, 
                                     colors = mergedColors, 
@@ -431,8 +577,7 @@ ME.uromol.train <- moduleEigengenes(uromol.expr.train,
 ME.uromol.train.mtx <- ME.uromol.train$eigengenes
 ```
 
-```{r}
-
+``` r
 # for extra analysis on how the modules relate to each other
 MET = orderMEs(ME.uromol.train$eigengenes)
 plotEigengeneNetworks(MET,
@@ -448,13 +593,13 @@ plotEigengeneNetworks(MET,
                       legendLabel = "Pearson r")
 ```
 
-```{r}
+![](02-feature_selection_files/figure-gfm/unnamed-chunk-18-1.png)<!-- -->
 
+``` r
 saveRDS(ME.uromol.train, "./model/uromol_train_WGCNA_MEs.rds")
 ```
 
-```{r}
-
+``` r
 # Correlation between MEs and recurrence-free survival time (RFS_time)
 cor.MEs <- cor(ME.uromol.train.mtx,
                y = ifelse(uromol.clin.train$recurrence_at_36mths == "Yes", 1, -1),
@@ -466,8 +611,7 @@ selectedMEs.mtx <- ME.uromol.train.mtx[, selectedMEs]
 
 # RF from WGCNA MEs
 
-```{r, warning=FALSE}
-
+``` r
 rf_grid <- expand.grid(
   mtry = seq(1, 5),
   splitrule = "gini",
@@ -489,14 +633,55 @@ rf.model1 <- caret::train(
 
 ## Evaluation
 
-```{r}
-
+``` r
 rf.model1.eval <- evalm(rf.model1)
+```
+
+    ## ***MLeval: Machine Learning Model Evaluation***
+
+    ## Input: caret train function object
+
+    ## Not averaging probs.
+
+    ## Group 1 type: cv
+
+    ## Observations: 230
+
+    ## Number of groups: 1
+
+    ## Observations per group: 230
+
+    ## Positive: Yes
+
+    ## Negative: No
+
+    ## Group: Group 1
+
+    ## Positive: 150
+
+    ## Negative: 80
+
+    ## ***Performance Metrics***
+
+    ## Warning: Using `size` aesthetic for lines was deprecated in ggplot2 3.4.0.
+    ## ℹ Please use `linewidth` instead.
+    ## ℹ The deprecated feature was likely used in the MLeval package.
+    ##   Please report the issue to the authors.
+    ## This warning is displayed once per session.
+    ## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was
+    ## generated.
+
+![](02-feature_selection_files/figure-gfm/unnamed-chunk-22-1.png)<!-- -->![](02-feature_selection_files/figure-gfm/unnamed-chunk-22-2.png)<!-- -->![](02-feature_selection_files/figure-gfm/unnamed-chunk-22-3.png)<!-- -->![](02-feature_selection_files/figure-gfm/unnamed-chunk-22-4.png)<!-- -->
+
+    ## Group 1 Optimal Informedness = 0.2275
+
+    ## Group 1 AUC-ROC = 0.62
+
+``` r
 rf.bestModel1 <- rf.model1$finalModel
 ```
 
-```{r}
-
+``` r
 ggsave('./plots/evaluation/uromol_train_WGCNA_RF_PRAUC.pdf', 
        rf.model1.eval$proc,
        width = 5,
@@ -505,8 +690,7 @@ ggsave('./plots/evaluation/uromol_train_WGCNA_RF_PRAUC.pdf',
 
 ### SHAP
 
-```{r warning=FALSE}
-
+``` r
 registerDoParallel(cores = 6)  # use forking with 6 cores
 rf.bestModel1.shap <- fastshap::explain(rf.bestModel1,
                                         X = selectedMEs.mtx, 
@@ -519,9 +703,19 @@ rf.bestModel1.shap <- fastshap::explain(rf.bestModel1,
 shap.p1 <- sv_waterfall(shapviz(rf.bestModel1.shap), 
                         row_id = 1:nrow(rf.bestModel1.shap$feature_values)) +
   theme(margins = margin(1))
+```
+
+    ## Aggregating SHAP values over 230 observations
+
+``` r
 shap.p2 <- sv_force(shapviz(rf.bestModel1.shap), 
                     row_id = 1:nrow(rf.bestModel1.shap$feature_values)) +
   theme(margins = margin(1))
+```
+
+    ## Aggregating SHAP values over 230 observations
+
+``` r
 shap.p3 <- sv_importance(shapviz(rf.bestModel1.shap)) +
   labs(title = "SHAP Probability(Recurrence at 36mths = Yes)") +
   scale_x_continuous(expand = expansion(add = c(0, 0.001))) +
@@ -531,27 +725,29 @@ shap.p3 <- sv_importance(shapviz(rf.bestModel1.shap)) +
 shap.train.pw <- shap.p1 + shap.p2 + shap.p3 + plot_layout(heights = c(2, 3, 3), nrow = 3)
 ```
 
-```{r}
-
+``` r
 ggsave("./plots/evaluation/uromol_train_RNAseq_WGCNA_shap_plots.pdf",
        plot = shap.train.pw, 
        width = 6, height = 9)
 ```
 
--   Based on the SHAP plots, it looks like I can maybe just drop cyan.
+- Based on the SHAP plots, it looks like I can maybe just drop cyan.
 
 # DE analysis
 
 use limma because data normalized
 
-```{r}
-
+``` r
 design.mtx <- model.matrix(~ uromol.clin.train$recurrence_at_36mths)
 fit.MEtop <- limma::lmFit(t(uromol.expr.train), design.mtx) # fit the whole expression matrix
 fit.MEtop <- limma::eBayes(fit.MEtop)
 
 DEtable <- limma::topTable(fit.MEtop, number = ncol(uromol.expr.train))
+```
 
+    ## Removing intercept from test coefficients
+
+``` r
 volcano.plot(DEtable, 
              FDRthreshold = 0.05, 
              logFCthreshold = 0.58, 
@@ -559,16 +755,21 @@ volcano.plot(DEtable,
              log2FC_name = "logFC",
              title = "Recurrence vs non-recurrence at 36 months"
              )
+```
 
+    ## Warning: Removed 19065 rows containing missing values or values outside the scale range
+    ## (`geom_text_repel()`).
+
+![](02-feature_selection_files/figure-gfm/unnamed-chunk-26-1.png)<!-- -->
+
+``` r
 DEGs <- DEtable %>% 
   filter(P.Value < 0.05,
          logFC > 0.58 | logFC < -0.58) %>%
   rownames()
-
 ```
 
-```{r}
-
+``` r
 saveRDS(list(fullDE = DEtable, sigDE = DEGs), file = './model/uromol_train_limma_DE.rds')
 ```
 
@@ -577,10 +778,10 @@ saveRDS(list(fullDE = DEtable, sigDE = DEGs), file = './model/uromol_train_limma
 1.  genes in all modules except last (turquoise)
 2.  significant DEGs
 3.  protein-coding (all of 1 & 2 are protein-coding)
-4.  also in microarray (already pre-filtered this prior to running any analysis!)
+4.  also in microarray (already pre-filtered this prior to running any
+    analysis!)
 
-```{r}
-
+``` r
 downselectedME <- shap.p3@data %>% 
   filter(value != min(value)) %>%
   pull(feature) %>%
@@ -594,13 +795,33 @@ genes.1o2o3 <- annotate.genes(genes.1o2, field = c('symbol', 'type_of_gene')) %>
   pull(symbol)
 ```
 
-```{r}
+    ## 
 
+    ## 'select()' returned 1:1 mapping between keys and columns
+
+    ## Warning: multiple methods tables found for 'seqinfo'
+
+    ## Warning: multiple methods tables found for 'seqinfo<-'
+
+    ## Warning: multiple methods tables found for 'seqnames'
+
+    ## Warning: multiple methods tables found for 'seqinfo'
+
+    ## Warning: multiple methods tables found for 'seqinfo<-'
+
+    ## Warning: multiple methods tables found for 'seqnames'
+
+    ## Warning: multiple methods tables found for 'seqnames<-'
+
+    ## Warning: multiple methods tables found for 'seqlevelsInUse'
+
+``` r
 # gene that didn't make it
 setdiff(genes.1o2, genes.1o2o3)
 ```
 
-```{r}
+    ## character(0)
 
+``` r
 saveRDS(genes.1o2o3, file = "./model/uromol_train_criteria_genes.rds")
 ```
